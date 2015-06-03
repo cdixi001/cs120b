@@ -96,12 +96,18 @@ void delay_ms(int miliSec) //for 8 Mhz crystal
 
 //~~~~~~~~~~~~~~~~~~END LCD STUFF~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-unsigned char SetBit(unsigned char x, unsigned char k, unsigned char b) {
-	return (b ? x | (0x01 << k) : x & ~(0x01 << k));
+unsigned char SetBit(unsigned char pin, unsigned char number, unsigned char bin_value)
+{
+	return (bin_value ? pin | (0x01 << number) : pin & ~(0x01 << number));
 }
 
-unsigned char GetBit(unsigned char x, unsigned char k) {
-	return ((x & (0x01 << k)) != 0);
+////////////////////////////////////////////////////////////////////////////////
+//Functionality - Gets bit from a PINx
+//Parameter: Takes in a uChar for a PINx and the pin number
+//Returns: The value of the PINx
+unsigned char GetBit(unsigned char port, unsigned char number)
+{
+	return ( port & (0x01 << number) );
 }
 
 char GetKeypadKey() {
@@ -245,6 +251,7 @@ void PWM_off() {
 //----------------------------------------------------------------------------------------
 
 char arr[50];
+arr[0] = '&';
 double notes[13] = {440, 466.16, 493.88, 523.25, 554.37, 587.33, 622.25, 698.46, 739.99, 783.99, 830.61, 880.00};
 char p1LED = 1;
 char p2LED = 0;
@@ -310,6 +317,20 @@ double getfreq(char fig) {
 		
 }
 
+void play_song(char song[]){
+	TimerSet(200);
+	unsigned char s1 = 0;
+	
+	while(song[s1] != endchar){
+		set_PWM(getfreq(song[s1]));
+		while (!TimerFlag){}
+		TimerFlag = 0;
+		s1++;
+	}
+	TimerSet(200);
+	return;
+}
+
 
 //--------Task scheduler data structure--------------------
 // Struct for Tasks represent a running process in our
@@ -341,18 +362,16 @@ int TickFct_record(int state) {
 		case rec_init:
 			if (!recordflag) {
 				state = rec_init;
-				} else if (recordflag) {
+			} else if (recordflag) {
+				i = 0;
 				state = rec_waitrecorder;
 				p1LED = !p1LED;
 				p2LED = !p2LED;
 			}
+			
 			break;
 		case rec_waitrecorder:
-			if(GetBit(porttb, 0)) {
-				SetBit(porttb, 0, 0);
-			} else SetBit(porttb, 0, 1);
-		
-		
+			
 			if (GetKeypadKey() != '\0') {
 				state = rec_record;
 			}
@@ -392,6 +411,7 @@ int TickFct_record(int state) {
 			set_PWM(getfreq(GetKeypadKey()));
 		break;
 		case rec_goCompare:
+			set_PWM(0.00);
 			recordflag = 0;
 			compareflag = 1;
 			p1LED = !p1LED;
@@ -458,12 +478,11 @@ int TickFct_playBack(int state) {
 			LCD_DisplayString(1, "   note");
 			LCD_Cursor(1);
 			LCD_WriteData(songcount + '0');
-			//TimerSet(500);
-			for(unsigned j = 0; j < songcount; j++) {
-				set_PWM(getfreq(thesong[j]));
-			}
+			play_song(thesong);
+			//for(unsigned j = 0; j < songcount; j++) {
+			//	set_PWM(getfreq(thesong[j]));
+			//}
 			songcount++;
-			//SET TIMER BACK TO THE ORIGINAL
 			p1LED = 1;
 			playbackflag = 0;
 			compareflag = 1;
@@ -480,7 +499,7 @@ int TickFct_compare(int state) {
 	/*VARIABLES MUST BE DECLARED STATIC*/
 	/*e.g., static int x = 0;*/
 	/*Define user variables for this state machine here. No functions; make them global.*/
-	static char i = 0;
+	static char j = 0;
 	switch(state) { // Transitions
 		case -1:
 			state = comp_init;
@@ -491,7 +510,7 @@ int TickFct_compare(int state) {
 			}
 			else if (compareflag) {
 				state = comp_waitPress;
-				i = 0;
+				j = 0;
 				winflag = 0;
 			}
 			break;
@@ -499,16 +518,16 @@ int TickFct_compare(int state) {
 			if (GetKeypadKey() == '\0') {
 				state = comp_waitPress;
 			}
-			else if (GetKeypadKey() == thesong[i]) {
+			else if (GetKeypadKey() == thesong[j]) {
 				state = comp_waitRelease;
-				i++;
+				j++;
 			}
-			else if (GetKeypadKey() != thesong[i]) {
+			else if (GetKeypadKey() != thesong[j]) {
 				state = comp_youLose;
 			}
 			break;
 		case comp_waitRelease:
-			if (arr[i] == endchar || i > 49) {
+			if (thesong[j] == endchar || j > 49) {
 				state = comp_youWin;
 			}
 			else if (GetKeypadKey() != '\0') {
@@ -536,8 +555,15 @@ int TickFct_compare(int state) {
 		case comp_init:
 			break;
 		case comp_waitPress:
+				//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+				LCD_Cursor(27);
+				LCD_WriteData(j + '0');
+				if(GetBit(porttb, 1)) {
+					porttb = SetBit(porttb, 1, 0);
+				} else porttb = SetBit(porttb, 1, 1);
 			break;
 		case comp_waitRelease:
+			set_PWM(getfreq(GetKeypadKey()));
 			break;
 		case comp_youWin:
 			winflag = 1;
@@ -642,7 +668,6 @@ int TickFct_menu(int state) {
 
 	switch(state) { // State actions
 		case menu_init:
-			
 			LCD_DisplayString(1, "Single    Multi");
 			break;
 		case menu_single:
@@ -653,19 +678,13 @@ int TickFct_menu(int state) {
 			LCD_WriteData(songcount + '0');
 			break;
 		case menu_multi:
-			LCD_DisplayString(1, "P0:      P2:  ");
+			LCD_DisplayString(1, "P1:      P2:  ");
 			LCD_Cursor(5);
 			LCD_WriteData(p1score + '0');
 			LCD_Cursor(14);
 			LCD_WriteData(p2score + '0');
-			
-			LCD_Cursor(18);
-			LCD_WriteData(recordflag + '0');
-			LCD_WriteData(compareflag + '0');
-			
-			if(GetBit(porttb, 0)) {
-				SetBit(porttb, 0, 0);
-			} else SetBit(porttb, 0, 1);
+			LCD_WriteData(*arr);
+			LCD_WriteData(*thesong);
 		
 			if(winflag) {
 				if(p1LED) {
@@ -677,12 +696,17 @@ int TickFct_menu(int state) {
 			recordflag = 1;
 			break;
 		case menu_waitcompare:
-			LCD_DisplayString(1, "wait2compare");
 			break;
 		case menu_singlewin:
 			LCD_DisplayString(1, "Congratulations you win!!");
 			break;
 		case menu_wait2compare:
+		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+			LCD_Cursor(18);
+			LCD_WriteData('R');
+			LCD_WriteData(recordflag + '0');
+			LCD_WriteData('C');
+			LCD_WriteData(compareflag + '0');
 			break;
 		case menu_singlelose:
 			LCD_DisplayString(1, "You lose, inferior.");
