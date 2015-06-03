@@ -726,7 +726,7 @@ int main(void)
 	tasks[i].elapsedTime = 1;
 	tasks[i].TickFct = &TickFct_menu;
 	
-	DDRA = 0xFF; PORTA = 0x00; // buttons
+	DDRA = 0x03; PORTA = 0xFC; // LCD and buttons (a2 a3)
 	DDRB = 0xFF; PORTB = 0x00; // LED's
 	DDRD = 0xFF; PORTD = 0x00; // LCD
 	DDRC = 0xF0; PORTC = 0x0F; // keypad
@@ -764,10 +764,10 @@ int main(void)
 		pinna = PINA;
 		pinna = ~pinna;
 		
-		if(GetBit(pinna, 0)) {
+		if(GetBit(pinna, 2)) {
 			button1 = 1;
 		} else button1 = 0;
-		if(GetBit(pinna, 1)) {
+		if(GetBit(pinna, 3)) {
 			button2 = 1;
 		} else button2 = 0;
 		
