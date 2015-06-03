@@ -31,6 +31,15 @@ unsigned char my_ram_array;
 
 /*-------------------------------------------------------------------------*/
 
+void LCD_WriteCommand (unsigned char Command) {
+	CLR_BIT(CONTROL_BUS,RS);
+	DATA_BUS = Command;
+	SET_BIT(CONTROL_BUS,E);
+	asm("nop");
+	CLR_BIT(CONTROL_BUS,E);
+	delay_ms(2); // ClearScreen requires 1.52ms to execute
+}
+
 void LCD_ClearScreen(void) {
 	LCD_WriteCommand(0x01);
 }
@@ -44,15 +53,6 @@ void LCD_init(void) {
 	LCD_WriteCommand(0x0f);
 	LCD_WriteCommand(0x01);
 	delay_ms(10);
-}
-
-void LCD_WriteCommand (unsigned char Command) {
-	CLR_BIT(CONTROL_BUS,RS);
-	DATA_BUS = Command;
-	SET_BIT(CONTROL_BUS,E);
-	asm("nop");
-	CLR_BIT(CONTROL_BUS,E);
-	delay_ms(2); // ClearScreen requires 1.52ms to execute
 }
 
 void LCD_WriteData(unsigned char Data) {
@@ -268,6 +268,9 @@ char singleflag = 1;
 char button1 = 0;
 char button2 = 0;
 
+char pinna;
+char porttb;
+
 
 double getfreq(char fig) {
 	if(fig == '1') {
@@ -381,7 +384,7 @@ int TickFct_record(int state) {
 			i++;
 		break;
 		case rec_waitRelease:
-			setPWM(getfreq(GetKeypadKey()));
+			set_PWM(getfreq(GetKeypadKey()));
 		break;
 		case rec_goCompare:
 			recordflag = 0;
@@ -447,12 +450,12 @@ int TickFct_playBack(int state) {
 			break;
 		case play_playSong:
 			p1LED = 0;
-			LCD_DisplayString(0, "   note");
-			LCD_Cursor(0);
-			LCD_WriteData(songcount);
+			LCD_DisplayString(1, "   note");
+			LCD_Cursor(1);
+			LCD_WriteData(songcount + '0');
 			//TimerSet(500);
 			for(unsigned j = 0; j < songcount; j++) {
-				setPWM(getfreq(thesong[j]));
+				set_PWM(getfreq(thesong[j]));
 			}
 			songcount++;
 			//SET TIMER BACK TO THE ORIGINAL
@@ -557,7 +560,7 @@ int TickFct_menu(int state) {
 			state = menu_init;
 			break;
 		case menu_init:
-			if (!gameflag) {
+			if (!(button1 || button2)) {
 				state = menu_init;
 			}
 			else if (button1) {
@@ -634,21 +637,24 @@ int TickFct_menu(int state) {
 
 	switch(state) { // State actions
 		case menu_init:
-			LCD_DisplayString(0, "Single      Multi");
+			if(GetBit(porttb, 0)) {
+				porttb = 0x00;
+			} else porttb = 0x01;
+			LCD_DisplayString(1, "Single      Multi");
 			break;
 		case menu_single:
 			p1LED = 0;
 			playbackflag = 1;
-			LCD_DisplayString(0, "Score: ");
-			LCD_Cursor(7);
+			LCD_DisplayString(1, "Score: ");
+			LCD_Cursor(8);
 			LCD_WriteData(songcount + '0');
 			break;
 		case menu_multi:
 			recordflag = 1;
-			LCD_DisplayString(0, "P1:        P2:  ");
-			LCD_Cursor(4);
+			LCD_DisplayString(1, "P1:        P2:  ");
+			LCD_Cursor(5);
 			LCD_WriteData(p1score + '0');
-			LCD_Cursor(16);
+			LCD_Cursor(17);
 			LCD_WriteData(p2score + '0');
 		
 			if(winflag) {
@@ -662,24 +668,22 @@ int TickFct_menu(int state) {
 		case menu_waitcompare:
 			break;
 		case menu_singlewin:
-			LCD_ClearScren();
-			LCD_DisplayString(0, "Congratulations you win!!");
+			LCD_DisplayString(1, "Congratulations you win!!");
 			break;
 		case menu_wait2compare:
 			break;
 		case menu_singlelose:
-			LCD_ClearScren();
-			LCD_DisplayString(0, "You lose, inferior.");
+			LCD_DisplayString(1, "You lose, inferior.");
 			break;
 		case menu_multiwin:
 			LCD_ClearScreen();
-			LCD_DisplayString(0, "P   Wins!!!");
-			LCD_Cursor(1);
+			LCD_DisplayString(1, "P   Wins!!!");
+			LCD_Cursor(2);
 			if(p1score > 4) {
-				LCD_WriteData("1");
+				LCD_WriteData('1');
 			}
 			else if(p2score > 4) {
-				LCD_WriteData("2");
+				LCD_WriteData('2');
 			}
 			break;
 		default: // ADD default behaviour below
@@ -722,11 +726,13 @@ int main(void)
 	tasks[i].elapsedTime = 1;
 	tasks[i].TickFct = &TickFct_menu;
 	
-	DDRA = 0x00; PORTA = 0xFF; // buttons
+	DDRA = 0xFF; PORTA = 0x00; // buttons
 	DDRB = 0xFF; PORTB = 0x00; // LED's
 	DDRD = 0xFF; PORTD = 0x00; // LCD
 	DDRC = 0xF0; PORTC = 0x0F; // keypad
-	char pinna = PINA;
+	pinna = PINA;
+	porttb = 0x00;
+	PORTB = porttb;
 	LCD_init();
 	// Starting at position 1 on the LCD screen
 	//LCD_DisplayString(1, "button menu section");
@@ -734,7 +740,7 @@ int main(void)
 	PWM_on();
 	TimerOn();
 	
-	TimerSet(50);
+	TimerSet(200);
 	TimerOn();
 	/*
 	LCD_Cursor(2);
@@ -754,6 +760,7 @@ int main(void)
 			tasks[i].elapsedTime += 1;
 		}
 		
+		PORTB = porttb;
 		pinna = PINA;
 		pinna = ~pinna;
 		
