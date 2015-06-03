@@ -104,7 +104,7 @@ unsigned char GetBit(unsigned char x, unsigned char k) {
 	return ((x & (0x01 << k)) != 0);
 }
 
-unsigned char GetKeypadKey() {
+char GetKeypadKey() {
 	// Check keys in col 1
 	// Enable col 4 with 0, disable others with 1?s
 	// The delay allows PORTC to stabilize before checking
@@ -246,7 +246,7 @@ void PWM_off() {
 
 char arr[50];
 double notes[13] = {440, 466.16, 493.88, 523.25, 554.37, 587.33, 622.25, 698.46, 739.99, 783.99, 830.61, 880.00};
-char p1LED = 0;
+char p1LED = 1;
 char p2LED = 0;
 char recordflag = 0;
 char compareflag = 0;
@@ -348,6 +348,11 @@ int TickFct_record(int state) {
 			}
 			break;
 		case rec_waitrecorder:
+			if(GetBit(porttb, 0)) {
+				SetBit(porttb, 0, 0);
+			} else SetBit(porttb, 0, 1);
+		
+		
 			if (GetKeypadKey() != '\0') {
 				state = rec_record;
 			}
@@ -590,7 +595,7 @@ int TickFct_menu(int state) {
 				state = menu_singlewin;
 			}
 			break;
-			case menu_multi:
+		case menu_multi:
 			if (p1score < 5 && p2score < 5) {
 				state = menu_wait2compare;
 			}
@@ -599,7 +604,7 @@ int TickFct_menu(int state) {
 			}
 			break;
 		case menu_waitcompare:
-			if (compareflag) {
+			if (compareflag || playbackflag) {
 				state = menu_waitcompare;
 			}
 			else if (!compareflag) {
@@ -611,7 +616,7 @@ int TickFct_menu(int state) {
 			state = menu_waitfinish;
 			break;
 		case menu_wait2compare:
-			if (compareflag) {
+			if (compareflag || recordflag) {
 				state = menu_wait2compare;
 			}
 			else if (!compareflag) {
@@ -637,10 +642,8 @@ int TickFct_menu(int state) {
 
 	switch(state) { // State actions
 		case menu_init:
-			if(GetBit(porttb, 0)) {
-				porttb = 0x00;
-			} else porttb = 0x01;
-			LCD_DisplayString(1, "Single      Multi");
+			
+			LCD_DisplayString(1, "Single    Multi");
 			break;
 		case menu_single:
 			p1LED = 0;
@@ -650,12 +653,19 @@ int TickFct_menu(int state) {
 			LCD_WriteData(songcount + '0');
 			break;
 		case menu_multi:
-			recordflag = 1;
-			LCD_DisplayString(1, "P1:        P2:  ");
+			LCD_DisplayString(1, "P0:      P2:  ");
 			LCD_Cursor(5);
 			LCD_WriteData(p1score + '0');
-			LCD_Cursor(17);
+			LCD_Cursor(14);
 			LCD_WriteData(p2score + '0');
+			
+			LCD_Cursor(18);
+			LCD_WriteData(recordflag + '0');
+			LCD_WriteData(compareflag + '0');
+			
+			if(GetBit(porttb, 0)) {
+				SetBit(porttb, 0, 0);
+			} else SetBit(porttb, 0, 1);
 		
 			if(winflag) {
 				if(p1LED) {
@@ -664,8 +674,10 @@ int TickFct_menu(int state) {
 					p2score++;
 				}
 			}
+			recordflag = 1;
 			break;
 		case menu_waitcompare:
+			LCD_DisplayString(1, "wait2compare");
 			break;
 		case menu_singlewin:
 			LCD_DisplayString(1, "Congratulations you win!!");
@@ -759,6 +771,8 @@ int main(void)
 			}
 			tasks[i].elapsedTime += 1;
 		}
+		//SetBit(porttb, 0, p1LED);
+		//SetBit(porttb, 1, p2LED);
 		
 		PORTB = porttb;
 		pinna = PINA;
