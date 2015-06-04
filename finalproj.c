@@ -11,9 +11,11 @@
 
 //declare an eeprom array
 unsigned char EEMEM  highscore;
+unsigned char EEMEM eeprom_check;
 
 // declare a ram array
 unsigned char highscoreram;
+unsigned char check = 0;
 
 
 
@@ -258,12 +260,16 @@ char recordflag = 0;
 char compareflag = 0;
 char playbackflag = 0;
 char endchar = 'D';
-char song1[2];
-char song2[3];
-char song3[4];
-char song4[5];
+char song1[2] = {'4', 'D'};
+char song2[3] = {'1', 'B', 'D'};
+char song3[4] = {'C', '6', '3', 'D'};
+char song4[5] = {'9', '8', 'C', '*', 'D'};
+char song5[6] = {'1', '2', '3', 'A', '4', 'D'};
+char song6[7] = {'1', '2', '3', 'A', '4', '5', 'D'};
+char song7[8] = {'1', '2', '3', 'A', '4', '5', '6', 'D'};
+char song8[9] = {'1', '2', '3', 'A', '4', '5', '6', 'B', 'D'};
 char *thesong;
-unsigned char songcount;
+unsigned char songcount = 1;
 
 unsigned char p1score = 0;
 unsigned char p2score = 0;
@@ -316,6 +322,7 @@ double getfreq(char fig) {
 		
 }
 
+/*
 void play_song(char song[]){
 	TimerSet(200);
 	unsigned char s1 = 0;
@@ -329,6 +336,7 @@ void play_song(char song[]){
 	TimerSet(200);
 	return;
 }
+*/
 
 
 //--------Task scheduler data structure--------------------
@@ -433,11 +441,12 @@ int TickFct_record(int state) {
 }
 
 
-enum play_States { play_init, play_wait, play_playSong } play_State;
+enum play_States { play_init, play_wait, play_playSong, play_stuff } play_State;
 int TickFct_playBack(int state) {
 	/*VARIABLES MUST BE DECLARED STATIC*/
 	/*e.g., static int x = 0;*/
 	/*Define user variables for this state machine here. No functions; make them global.*/
+	static unsigned char counnt = 0;
 	switch(state) { // Transitions
 		case -1:
 			state = play_init;
@@ -467,29 +476,53 @@ int TickFct_playBack(int state) {
 				state = play_playSong;
 				thesong = song4;
 			}
+			else if (songcount == 5) {
+				state = play_playSong;
+				thesong = song5;
+			}
+			else if (songcount == 6) {
+				state = play_playSong;
+				thesong = song6;
+			}
+			else if (songcount == 7) {
+				state = play_playSong;
+				thesong = song7;
+			}
+			else if (songcount == 8) {
+				state = play_playSong;
+				thesong = song8;
+			}
+			counnt = 0;
 			break;
 		case play_playSong:
-			state = play_wait;
+			if(counnt < songcount) {
+				state = play_playSong;
+			} else state = play_stuff;
 			break;
+		case play_stuff:
+			state = play_wait;
 		default:
 		state = -1;
 	} // Transitions
 
 	switch(state) { // State actions
 		case play_init:
-			songcount = 0;
+			//songcount = 0;
 			break;
 		case play_wait:
 			break;
 		case play_playSong:
 			p1LED = 0;
-			LCD_DisplayString(1, "   note");
-			LCD_Cursor(1);
-			LCD_WriteData(songcount + '0');
-			play_song(thesong);
+			porttb = SetBit(porttb, 2, 1);
+			set_PWM(getfreq(thesong[counnt]));
+			counnt++;
 			//for(unsigned j = 0; j < songcount; j++) {
 			//	set_PWM(getfreq(thesong[j]));
 			//}
+			break;
+		case play_stuff:
+			set_PWM(0);
+			porttb = SetBit(porttb, 2, 0);
 			songcount++;
 			p1LED = 1;
 			playbackflag = 0;
@@ -595,7 +628,7 @@ int TickFct_menu(int state) {
 	/*VARIABLES MUST BE DECLARED STATIC*/
 	/*e.g., static int x = 0;*/
 	/*Define user variables for this state machine here. No functions; make them global.*/
-	static int count = 0;
+	static unsigned long count = 0;
 	switch(state) { // Transitions
 		case -1:
 			state = menu_init;
@@ -608,7 +641,7 @@ int TickFct_menu(int state) {
 				state = menu_single;
 				singleflag = 1;
 				winflag = 1;
-				songcount = 0;
+				songcount = 1;
 				p1LED = 1;
 				p2LED = 0;
 			}
@@ -630,6 +663,8 @@ int TickFct_menu(int state) {
 			}
 			else if (songcount < 9 && winflag) {
 				state = menu_waitcompare;
+				p1LED = 0;
+				playbackflag = 1;
 			}
 			else if (songcount > 8) {
 				state = menu_singlewin;
@@ -661,8 +696,10 @@ int TickFct_menu(int state) {
 			}
 			break;
 		case menu_singlewin:
-			count = 0;
 			state = menu_waitfinish;
+			p1LED = 0;
+			p2LED = 0;
+			porttb = SetBit(porttb, 2, 0);
 			break;
 		case menu_wait2compare:
 			if (compareflag || recordflag) {
@@ -682,18 +719,26 @@ int TickFct_menu(int state) {
 			}
 			break;
 		case menu_singlelose:
-			count = 0;
 			state = menu_waitfinish;
+			p1LED = 0;
+			p2LED = 0;
+			porttb = SetBit(porttb, 2, 0);
 			break;
 		case menu_multiwin:
 			state = menu_waitfinish;
-			count = 0;
+			p1LED = 0;
+			p2LED = 0;
+			porttb = SetBit(porttb, 2, 0);
 			break;
 		case menu_waitfinish:
-			if(count < 100) {
+			if(count < 69) {
+				state = menu_waitfinish;
 				count++;
-			} else state = menu_init;
-		
+			} else {
+				state = menu_init;
+				count = 0;
+			}
+			break;
 		default:
 		state = -1;
 	} // Transitions
@@ -701,22 +746,26 @@ int TickFct_menu(int state) {
 	switch(state) { // State actions
 		case menu_init:
 			LCD_DisplayString(1, "Single    Multi");
+			count = 0;
 			break;
 		case menu_single:
-			p1LED = 0;
-			playbackflag = 1;
-			LCD_DisplayString(1, "Score: ");
+			LCD_DisplayString(1, "Score:              note");
 			LCD_Cursor(8);
+			LCD_WriteData(songcount + '0');
+			LCD_Cursor(17);
 			LCD_WriteData(songcount + '0');
 			break;
 		case menu_multi:
 			LCD_DisplayString(1, "P1:      P2:     HiScore: ");
 			LCD_Cursor(5);
-			LCD_WriteData(p1score + '0');
+			LCD_WriteData(p1score/10 + '0');
+			LCD_WriteData(p1score%10 + '0');
 			LCD_Cursor(14);
-			LCD_WriteData(p2score + '0');
+			LCD_WriteData(p2score/10 + '0');
+			LCD_WriteData(p2score%10 + '0');
 			LCD_Cursor(27);
-			LCD_WriteData(highscoreram + '0');
+			LCD_WriteData(highscoreram/10 + '0');
+			LCD_WriteData(highscoreram%10 + '0');
 			break;
 		case menu_waitcompare:
 			break;
@@ -747,6 +796,13 @@ int TickFct_menu(int state) {
 				LCD_WriteData('2');
 			}
 			break;
+		case menu_waitfinish:
+			if(GetBit(porttb, 2)) {
+				porttb = SetBit(porttb, 2, 0);
+			} else porttb = SetBit(porttb, 2, 1);
+			p1LED = !p1LED;
+			p2LED = !p2LED;
+			break;
 		default: // ADD default behaviour below
 			break;
 	} // State actions
@@ -771,7 +827,7 @@ int main(void)
 	++i;
 	
 	tasks[i].state = play_init;
-	tasks[i].period = 1;
+	tasks[i].period = 6;
 	tasks[i].elapsedTime = 1;
 	tasks[i].TickFct = &TickFct_playBack;
 	++i;
@@ -783,7 +839,7 @@ int main(void)
 	++i;
 	
 	tasks[i].state = menu_init;
-	tasks[i].period = 4;
+	tasks[i].period = 1;
 	tasks[i].elapsedTime = 1;
 	tasks[i].TickFct = &TickFct_menu;
 	
@@ -794,10 +850,20 @@ int main(void)
 	pinna = PINA;
 	porttb = 0x00;
 	PORTB = porttb;
+		
+	check = read_eeprom_word(&eeprom_check);
+	if(check != 1){
+		write_eeprom_word(&eeprom_check, 1);
+		check = 1;
+		
+		highscoreram = 1;
+		write_eeprom_word(&highscore, 1);
+	}
+	else{
+		highscoreram = read_eeprom_word(&highscore);
+	}	
 	
-	
-	highscoreram = read_eeprom_word(&highscore);
-	
+
 	LCD_init();
 	// Starting at position 1 on the LCD screen
 	//LCD_DisplayString(1, "button menu section");
@@ -840,11 +906,12 @@ int main(void)
 		} else button2 = 0;
 		
 		if(p1score > highscoreram) {
+			highscoreram = p1score;
 			write_eeprom_word(&highscore, p1score);
-			
 		}
 		if(p2score > highscoreram) {
-			write_eeprom_word(&highscore, p1score);
+			highscoreram = p2score;
+			write_eeprom_word(&highscore, p2score);
 		}
 		
 		
