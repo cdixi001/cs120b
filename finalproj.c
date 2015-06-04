@@ -251,19 +251,18 @@ void PWM_off() {
 //----------------------------------------------------------------------------------------
 
 char arr[50];
-arr[0] = '&';
 double notes[13] = {440, 466.16, 493.88, 523.25, 554.37, 587.33, 622.25, 698.46, 739.99, 783.99, 830.61, 880.00};
-char p1LED = 1;
+char p1LED = 0;
 char p2LED = 0;
 char recordflag = 0;
 char compareflag = 0;
 char playbackflag = 0;
 char endchar = 'D';
-double song1[1];
-double song2[2];
-double song3[3];
-double song4[4];
-double *thesong;
+char song1[1];
+char song2[2];
+char song3[3];
+char song4[4];
+char *thesong;
 unsigned char songcount;
 
 unsigned char p1score = 0;
@@ -354,7 +353,7 @@ int TickFct_record(int state) {
 	/*VARIABLES MUST BE DECLARED STATIC*/
 	/*e.g., static int x = 0;*/
 	/*Define user variables for this state machine here. No functions; make them global.*/
-	static char i = 0;
+	static char k = 0;
 	switch(state) { // Transitions
 		case -1:
 			state = rec_init;
@@ -363,10 +362,8 @@ int TickFct_record(int state) {
 			if (!recordflag) {
 				state = rec_init;
 			} else if (recordflag) {
-				i = 0;
 				state = rec_waitrecorder;
-				p1LED = !p1LED;
-				p2LED = !p2LED;
+				k = 0;
 			}
 			
 			break;
@@ -374,6 +371,9 @@ int TickFct_record(int state) {
 			
 			if (GetKeypadKey() != '\0') {
 				state = rec_record;
+				if(k > 0 && GetKeypadKey() == arr[k-1]) {
+					state = rec_waitrecorder;
+				}
 			}
 			else if (GetKeypadKey() == '\0') {
 				state = rec_waitrecorder;
@@ -385,13 +385,16 @@ int TickFct_record(int state) {
 			}
 			break;
 		case rec_waitRelease:
-			if (GetKeypadKey() == '\0' && arr[i-1] != endchar && i < 50) {
+			if (GetKeypadKey() == '\0' && arr[k-1] != endchar && k < 50) {
 				state = rec_waitrecorder;
-				} else if (GetKeypadKey() == '\0' && (arr[i-1] == endchar || i > 49)) {
+			} else if (GetKeypadKey() == '\0' && (arr[k-1] == endchar || k > 49)) {
 				state = rec_goCompare;
+				p1LED = !p1LED;
+				p2LED = !p2LED;
 			} else state = rec_waitRelease;
 			break;
 		case rec_goCompare:
+			state = rec_waitrecorder;
 			break;
 		default:
 		state = -1;
@@ -399,23 +402,26 @@ int TickFct_record(int state) {
 
 	switch(state) { // State actions
 		case rec_init:
-			i = 0;
+			k = 0;
 			break;
 		case rec_waitrecorder:
+			//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+			LCD_Cursor(29);
+			LCD_WriteData(k + '0');
+			LCD_WriteData(arr[k]);
 			break;
 		case rec_record:
-			arr[i] = GetKeypadKey();
-			i++;
+			arr[k] = GetKeypadKey();
+			k++;
 		break;
 		case rec_waitRelease:
 			set_PWM(getfreq(GetKeypadKey()));
 		break;
 		case rec_goCompare:
 			set_PWM(0.00);
+			k = 0;
 			recordflag = 0;
 			compareflag = 1;
-			p1LED = !p1LED;
-			p2LED = !p2LED;
 			break;
 		default: // ADD default behaviour below
 			break;
@@ -556,20 +562,20 @@ int TickFct_compare(int state) {
 			break;
 		case comp_waitPress:
 				//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-				LCD_Cursor(27);
+				LCD_Cursor(26);
 				LCD_WriteData(j + '0');
-				if(GetBit(porttb, 1)) {
-					porttb = SetBit(porttb, 1, 0);
-				} else porttb = SetBit(porttb, 1, 1);
+				LCD_WriteData(thesong[j]);
 			break;
 		case comp_waitRelease:
 			set_PWM(getfreq(GetKeypadKey()));
 			break;
 		case comp_youWin:
+			set_PWM(0);
 			winflag = 1;
 			compareflag = 0;
 			break;
 		case comp_youLose:
+			set_PWM(0);
 			winflag = 0;
 			compareflag = 0;
 			break;
@@ -599,15 +605,17 @@ int TickFct_menu(int state) {
 				singleflag = 1;
 				winflag = 1;
 				songcount = 0;
+				p1LED = 1;
 				p2LED = 0;
 			}
 			else if (button2) {
 				state = menu_multi;
 				singleflag = 0;
 				winflag = 0;
-				p1LED = 0;
-				p2LED = 1;
+				p1LED = 1;
+				p2LED = 0;
 				thesong = arr;
+				arr[0] = '&';
 			}
 			break;
 		case menu_single:
@@ -647,6 +655,17 @@ int TickFct_menu(int state) {
 			}
 			else if (!compareflag) {
 				state = menu_multi;
+				if(winflag) {
+					if(p1LED) {
+						p1score++;
+						} else if(p2LED) {
+						p2score++;
+					}
+					p1LED = !p1LED;
+					p2LED = !p2LED;
+				} else {
+					
+				}
 			}
 			break;
 		case menu_singlelose:
@@ -678,21 +697,12 @@ int TickFct_menu(int state) {
 			LCD_WriteData(songcount + '0');
 			break;
 		case menu_multi:
-			LCD_DisplayString(1, "P1:      P2:  ");
+			LCD_DisplayString(1, "P0:      P2:  ");
 			LCD_Cursor(5);
 			LCD_WriteData(p1score + '0');
 			LCD_Cursor(14);
 			LCD_WriteData(p2score + '0');
-			LCD_WriteData(*arr);
-			LCD_WriteData(*thesong);
 		
-			if(winflag) {
-				if(p1LED) {
-					p1score++;
-					} else if(p2LED) {
-					p2score++;
-				}
-			}
 			recordflag = 1;
 			break;
 		case menu_waitcompare:
@@ -795,8 +805,9 @@ int main(void)
 			}
 			tasks[i].elapsedTime += 1;
 		}
-		//SetBit(porttb, 0, p1LED);
-		//SetBit(porttb, 1, p2LED);
+		
+		porttb = SetBit(porttb, 0, p1LED);
+		porttb = SetBit(porttb, 1, p2LED);
 		
 		PORTB = porttb;
 		pinna = PINA;
