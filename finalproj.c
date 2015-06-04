@@ -10,10 +10,10 @@
 #define update_eeprom_word(address,value) eeprom_update_word ((uint16_t*)address,(uint16_t)value)
 
 //declare an eeprom array
-unsigned char EEMEM  my_eeprom_array;
+unsigned char EEMEM  highscore;
 
 // declare a ram array
-unsigned char my_ram_array;
+unsigned char highscoreram;
 
 
 
@@ -258,10 +258,10 @@ char recordflag = 0;
 char compareflag = 0;
 char playbackflag = 0;
 char endchar = 'D';
-char song1[1];
-char song2[2];
-char song3[3];
-char song4[4];
+char song1[2];
+char song2[3];
+char song3[4];
+char song4[5];
 char *thesong;
 unsigned char songcount;
 
@@ -280,35 +280,35 @@ char porttb;
 
 double getfreq(char fig) {
 	if(fig == '1') {
-		return 440;
+		return 220;
 	} else if(fig == '2') {
-		return 466.16;
+		return 233.08;
 	} else if(fig == '3') {
-		return 493.88;
+		return 246.94;
 	} else if(fig == 'A') {
-		return 523.25;
+		return 261.63;
 	} else if(fig == '4') {
-		return 554.37;
+		return 277.18;
 	} else if(fig == '5') {
-		return 587.33;
+		return 293.66;
 	} else if(fig == '6') {
-		return 622.25;
+		return 311.13;
 	} else if(fig == 'B') {
-		return 659.25;
+		return 329.63;
 	} else if(fig == '7') {
-		return 698.46;
+		return 349.23;
 	} else if(fig == '8') {
-		return 739.99;
+		return 369.99;
 	} else if(fig == '9') {
-		return 783.99;
+		return 392.00;
 	} else if(fig == 'C') {
-		return 830.61;
+		return 415.30;
 	} else if(fig == '*') {
-		return 880.00;
+		return 440.00;
 	} else if(fig == '0') {
-		return 932.33;
+		return 466.16;
 	} else if(fig == '#') {
-		return 987.77;
+		return 493.88;
 	} else if(fig == 'D') {
 		return -1.00;
 	}
@@ -368,7 +368,6 @@ int TickFct_record(int state) {
 			
 			break;
 		case rec_waitrecorder:
-			
 			if (GetKeypadKey() != '\0') {
 				state = rec_record;
 				if(k > 0 && GetKeypadKey() == arr[k-1]) {
@@ -394,7 +393,7 @@ int TickFct_record(int state) {
 			} else state = rec_waitRelease;
 			break;
 		case rec_goCompare:
-			state = rec_waitrecorder;
+			state = rec_init;
 			break;
 		default:
 		state = -1;
@@ -405,19 +404,22 @@ int TickFct_record(int state) {
 			k = 0;
 			break;
 		case rec_waitrecorder:
-			//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-			LCD_Cursor(29);
-			LCD_WriteData(k + '0');
-			LCD_WriteData(arr[k]);
+			//record light flash
+			if(GetBit(porttb, 2)) {
+				porttb = SetBit(porttb, 2, 0);
+			} else porttb = SetBit(porttb, 2, 1);
 			break;
 		case rec_record:
-			arr[k] = GetKeypadKey();
-			k++;
+			if(k > 0 || GetKeypadKey() != 'D') {
+				arr[k] = GetKeypadKey();
+				k++;
+			}
 		break;
 		case rec_waitRelease:
 			set_PWM(getfreq(GetKeypadKey()));
 		break;
 		case rec_goCompare:
+			porttb = SetBit(porttb, 2, 0);
 			set_PWM(0.00);
 			k = 0;
 			recordflag = 0;
@@ -562,9 +564,11 @@ int TickFct_compare(int state) {
 			break;
 		case comp_waitPress:
 				//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+				/*
 				LCD_Cursor(26);
 				LCD_WriteData(j + '0');
 				LCD_WriteData(thesong[j]);
+				*/
 			break;
 		case comp_waitRelease:
 			set_PWM(getfreq(GetKeypadKey()));
@@ -614,6 +618,8 @@ int TickFct_menu(int state) {
 				winflag = 0;
 				p1LED = 1;
 				p2LED = 0;
+				p1score = 0;
+				p2score = 0;
 				thesong = arr;
 				arr[0] = '&';
 			}
@@ -630,12 +636,21 @@ int TickFct_menu(int state) {
 			}
 			break;
 		case menu_multi:
+			if(!winflag && p1LED && p1score != p2score) {
+				state = menu_multiwin;
+				recordflag = 0;
+			} else {
+				state = menu_wait2compare;
+				recordflag = 1;
+			}
+			/*
 			if (p1score < 5 && p2score < 5) {
 				state = menu_wait2compare;
 			}
 			else if (p1score > 4 || p2score > 4) {
 				state = menu_multiwin;
 			}
+			*/
 			break;
 		case menu_waitcompare:
 			if (compareflag || playbackflag) {
@@ -663,8 +678,6 @@ int TickFct_menu(int state) {
 					}
 					p1LED = !p1LED;
 					p2LED = !p2LED;
-				} else {
-					
 				}
 			}
 			break;
@@ -673,11 +686,11 @@ int TickFct_menu(int state) {
 			state = menu_waitfinish;
 			break;
 		case menu_multiwin:
-			count = 0;
 			state = menu_waitfinish;
+			count = 0;
 			break;
 		case menu_waitfinish:
-			if(count < 50) {
+			if(count < 100) {
 				count++;
 			} else state = menu_init;
 		
@@ -697,13 +710,13 @@ int TickFct_menu(int state) {
 			LCD_WriteData(songcount + '0');
 			break;
 		case menu_multi:
-			LCD_DisplayString(1, "P0:      P2:  ");
+			LCD_DisplayString(1, "P1:      P2:     HiScore: ");
 			LCD_Cursor(5);
 			LCD_WriteData(p1score + '0');
 			LCD_Cursor(14);
 			LCD_WriteData(p2score + '0');
-		
-			recordflag = 1;
+			LCD_Cursor(27);
+			LCD_WriteData(highscoreram + '0');
 			break;
 		case menu_waitcompare:
 			break;
@@ -712,23 +725,25 @@ int TickFct_menu(int state) {
 			break;
 		case menu_wait2compare:
 		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+			/*
 			LCD_Cursor(18);
 			LCD_WriteData('R');
 			LCD_WriteData(recordflag + '0');
 			LCD_WriteData('C');
 			LCD_WriteData(compareflag + '0');
+			*/
 			break;
 		case menu_singlelose:
 			LCD_DisplayString(1, "You lose, inferior.");
 			break;
 		case menu_multiwin:
 			LCD_ClearScreen();
-			LCD_DisplayString(1, "P   Wins!!!");
+			LCD_DisplayString(1, "P   Wins!!!^");
 			LCD_Cursor(2);
-			if(p1score > 4) {
+			if(p1score > p2score) {
 				LCD_WriteData('1');
 			}
-			else if(p2score > 4) {
+			else {
 				LCD_WriteData('2');
 			}
 			break;
@@ -779,6 +794,10 @@ int main(void)
 	pinna = PINA;
 	porttb = 0x00;
 	PORTB = porttb;
+	
+	
+	highscoreram = read_eeprom_word(&highscore);
+	
 	LCD_init();
 	// Starting at position 1 on the LCD screen
 	//LCD_DisplayString(1, "button menu section");
@@ -786,7 +805,7 @@ int main(void)
 	PWM_on();
 	TimerOn();
 	
-	TimerSet(200);
+	TimerSet(100);
 	TimerOn();
 	/*
 	LCD_Cursor(2);
@@ -819,6 +838,15 @@ int main(void)
 		if(GetBit(pinna, 3)) {
 			button2 = 1;
 		} else button2 = 0;
+		
+		if(p1score > highscoreram) {
+			write_eeprom_word(&highscore, p1score);
+			
+		}
+		if(p2score > highscoreram) {
+			write_eeprom_word(&highscore, p1score);
+		}
+		
 		
 		while(!TimerFlag);
 		TimerFlag = 0;
