@@ -264,10 +264,10 @@ char song1[2] = {'4', 'D'};
 char song2[3] = {'1', 'B', 'D'};
 char song3[4] = {'C', '6', '3', 'D'};
 char song4[5] = {'9', '8', 'C', '*', 'D'};
-char song5[6] = {'1', '2', '3', 'A', '4', 'D'};
-char song6[7] = {'1', '2', '3', 'A', '4', '5', 'D'};
-char song7[8] = {'1', '2', '3', 'A', '4', '5', '6', 'D'};
-char song8[9] = {'1', '2', '3', 'A', '4', '5', '6', 'B', 'D'};
+char song5[6] = {'A', '5', '9', '7', '5', 'D'};
+char song6[7] = {'*', 'B', '4', 'B', '3', '1', 'D'};
+char song7[8] = {'2', 'B', '9', '8', '1', 'A', '2', 'D'};
+char song8[9] = {'#', '2', 'C', '6', '8', '2', '4', '1', 'D'};
 char *thesong;
 unsigned char songcount = 1;
 
@@ -623,12 +623,13 @@ int TickFct_compare(int state) {
 	return state;
 }
 
-enum menu_States { menu_init, menu_single, menu_multi, menu_waitcompare, menu_singlewin, menu_wait2compare, menu_singlelose, menu_multiwin, menu_waitfinish } menu_State;
+enum menu_States { menu_init, menu_single, menu_multi, menu_multilose, menu_waitcompare, menu_singlewin, menu_wait2compare, menu_singlelose, menu_multiwin, menu_waitfinish } menu_State;
 int TickFct_menu(int state) {
 	/*VARIABLES MUST BE DECLARED STATIC*/
 	/*e.g., static int x = 0;*/
 	/*Define user variables for this state machine here. No functions; make them global.*/
 	static unsigned long count = 0;
+	static unsigned long dasq = 0;
 	switch(state) { // Transitions
 		case -1:
 			state = menu_init;
@@ -643,7 +644,7 @@ int TickFct_menu(int state) {
 				winflag = 1;
 				songcount = 1;
 				p1LED = 1;
-				p2LED = 0;
+				p2LED = 1;
 			}
 			else if (button2) {
 				state = menu_multi;
@@ -664,6 +665,7 @@ int TickFct_menu(int state) {
 			else if (songcount < 9 && winflag) {
 				state = menu_waitcompare;
 				p1LED = 0;
+				p2LED = 0;
 				playbackflag = 1;
 			}
 			else if (songcount > 8) {
@@ -715,7 +717,19 @@ int TickFct_menu(int state) {
 					}
 					p1LED = !p1LED;
 					p2LED = !p2LED;
+				} else {
+					state = menu_multilose;
+					dasq = 0;
 				}
+			}
+			break;
+		case menu_multilose:
+			if(dasq < 29) {
+				state = menu_multilose;
+				dasq++;
+			} else {
+				state = menu_multi;
+				dasq = 0;
 			}
 			break;
 		case menu_singlelose:
@@ -781,6 +795,10 @@ int TickFct_menu(int state) {
 			LCD_WriteData('C');
 			LCD_WriteData(compareflag + '0');
 			*/
+			break;
+		case menu_multilose:
+			p1LED = !p1LED;
+			p2LED = !p2LED;
 			break;
 		case menu_singlelose:
 			LCD_DisplayString(1, "You lose, inferior.");
